@@ -1,0 +1,251 @@
+import random
+
+# --- Problem Parameters ---
+# Inventory data
+PRODUCT_INFO = {
+    'demand_average': 25,  # Average daily demand
+    'demand_std': 5,       # Standard deviation of daily demand
+    'holding_cost_per_unit': 0.5, # Cost to hold one unit for one day
+    'stockout_cost_per_unit': 5.0, # Cost for each unit of lost sales
+}
+
+# Genetic Algorithm parameters
+POPULATION_SIZE = 50
+NUM_GENERATIONS = 100
+MUTATION_RATE = 0.1
+SIMULATION_DAYS = 365
+
+# --- Genetic Algorithm Components ---
+
+def create_individual():
+    """Creates a single random individual (chromosome).
+    
+    An individual is a tuple representing (reorder_point, order_quantity).
+    We use random values within a reasonable range for this problem.
+    """
+    reorder_point = random.randint(10, 60)
+    order_quantity = random.randint(30, 100)
+    return (reorder_point, order_quantity)
+
+def create_population(size):
+    """Creates the initial random population."""
+    return [create_individual() for _ in range(size)]
+
+def simulate_inventory(individual):
+    """Simulates inventory for a given individual (strategy) and returns total cost.
+    
+    This is our **fitness function**, which we want to minimize. In a GA, we
+    often maximize fitness, so we'll return the inverse of the cost.
+    """
+    reorder_point, order_quantity = individual
+    inventory_level = 50  # Starting inventory
+    total_holding_cost = 0
+    total_stockout_cost = 0
+    
+    for _ in range(SIMULATION_DAYS):
+        # Simulate daily demand
+        demand = max(0, int(random.gauss(PRODUCT_INFO['demand_average'], PRODUCT_INFO['demand_std'])))
+        
+        # Check for reorder point and place an order
+        if inventory_level <= reorder_point:
+            # For simplicity, we assume an order arrives instantly
+            inventory_level += order_quantity
+            
+        # Fulfill demand
+        if inventory_level >= demand:
+            inventory_level -= demand
+        else:
+            # Stockout occurs
+            stockout = demand - inventory_level
+            total_stockout_cost += stockout * PRODUCT_INFO['stockout_cost_per_unit']
+            inventory_level = 0
+            
+        # Calculate holding costs
+        total_holding_cost += inventory_level * PRODUCT_INFO['holding_cost_per_unit']
+
+    total_cost = total_holding_cost + total_stockout_cost
+    # The GA seeks to maximize fitness, so we use a negative value of the cost
+    # or 1/(cost+1) to ensure we find the minimum cost.
+    return 1 / (total_cost + 1) 
+
+def select_parents(population, fitness_scores):
+    """Selects two parents using roulette wheel selection."""
+    total_fitness = sum(fitness_scores)
+    if total_fitness == 0:
+        # Avoid division by zero if all fitnesses are zero
+        return random.sample(population, 2)
+    
+    probabilities = [score / total_fitness for score in fitness_scores]
+    # random.choices is a convenient way to implement roulette wheel
+    parents = random.choices(population, weights=probabilities, k=2)
+    return parents[0], parents[1]
+
+def crossover(parent1, parent2):
+    """Performs single-point crossover between two parents."""
+    crossover_point = random.randint(1, len(parent1) - 1)
+    child1 = parent1[:crossover_point] + parent2[crossover_point:]
+    child2 = parent2[:crossover_point] + parent1[crossover_point:]
+    return child1, child2
+
+def mutate(individual, mutation_rate):
+    """Mutates an individual with a given probability."""
+    mutated_individual = list(individual)
+    if random.random() < mutation_rate:
+        gene_to_mutate = random.randint(0, len(mutated_individual) - 1)
+        # Apply a small random change
+        if gene_to_mutate == 0:
+            mutated_individual[gene_to_mutate] = random.randint(10, 60)
+        else:
+            mutated_individual[gene_to_mutate] = random.randint(30, 100)
+    return tuple(mutated_individual)
+
+
+def run_genetic_algorithm():
+    """Main function to run the genetic algorithm."""
+    population = create_population(POPULATION_SIZE)
+    best_individual = None
+    best_fitness = -1.0
+
+    for generation in range(NUM_GENERATIONS):
+        # Evaluate fitness for each individual
+        fitness_scores = [simulate_inventory(individual) for individual in population]
+        
+        # Track the best individual
+        current_best_fitness = max(fitness_scores)
+        if current_best_fitness > best_fitness:
+            best_fitness = current_best_fitness
+            best_individual = population[fitness_scores.index(best_fitness)]
+            
+        print(f"Generation {generation + 1}: Best cost = {1/best_fitness:.2f}")
+
+        # Create new population
+        new_population = []
+        for _ in range(POPULATION_SIZE // 2):
+            parent1, parent2 = select_parents(population, fitness_scores)
+            
+            child1, child2 = crossover(parent1, parent2)
+            
+            mutated_child1 = mutate(child1, MUTATION_RATE)
+            mutated_child2 = mutate(child2, MUTATION_RATE)
+            
+            new_population.append(mutated_child1)
+            new_population.append(mutated_child2)
+        
+        population = new_population
+
+    final_cost = 1 / best_fitness
+    print("\n--- Optimization Complete ---")
+    print(f"Best reorder point: {best_individual[0]}")
+    print(f"Best order quantity: {best_individual[1]}")
+    print(f"Minimum total inventory cost: {final_cost:.2f}")
+
+# --- Run the Algorithm ---
+if __name__ == "__main__":
+    run_genetic_algorithm()
+
+OUTPUT:
+Generation 1: Best cost = 3459.50
+Generation 2: Best cost = 3163.50
+Generation 3: Best cost = 3152.50
+Generation 4: Best cost = 3152.50
+Generation 5: Best cost = 2944.50
+Generation 6: Best cost = 2944.50
+Generation 7: Best cost = 2899.00
+Generation 8: Best cost = 2889.50
+Generation 9: Best cost = 2889.50
+Generation 10: Best cost = 2889.50
+Generation 11: Best cost = 2826.00
+Generation 12: Best cost = 2826.00
+Generation 13: Best cost = 2826.00
+Generation 14: Best cost = 2826.00
+Generation 15: Best cost = 2826.00
+Generation 16: Best cost = 2826.00
+Generation 17: Best cost = 2826.00
+Generation 18: Best cost = 2820.50
+Generation 19: Best cost = 2820.50
+Generation 20: Best cost = 2820.50
+Generation 21: Best cost = 2735.50
+Generation 22: Best cost = 2734.00
+Generation 23: Best cost = 2734.00
+Generation 24: Best cost = 2734.00
+Generation 25: Best cost = 2734.00
+Generation 26: Best cost = 2734.00
+Generation 27: Best cost = 2734.00
+Generation 28: Best cost = 2734.00
+Generation 29: Best cost = 2734.00
+Generation 30: Best cost = 2734.00
+Generation 31: Best cost = 2734.00
+Generation 32: Best cost = 2734.00
+Generation 33: Best cost = 2734.00
+Generation 34: Best cost = 2734.00
+Generation 35: Best cost = 2734.00
+Generation 36: Best cost = 2734.00
+Generation 37: Best cost = 2734.00
+Generation 38: Best cost = 2734.00
+Generation 39: Best cost = 2734.00
+Generation 40: Best cost = 2734.00
+Generation 41: Best cost = 2734.00
+Generation 42: Best cost = 2734.00
+Generation 43: Best cost = 2734.00
+Generation 44: Best cost = 2734.00
+Generation 45: Best cost = 2734.00
+Generation 46: Best cost = 2734.00
+Generation 47: Best cost = 2734.00
+Generation 48: Best cost = 2734.00
+Generation 49: Best cost = 2734.00
+Generation 50: Best cost = 2734.00
+Generation 51: Best cost = 2734.00
+Generation 52: Best cost = 2734.00
+Generation 53: Best cost = 2734.00
+Generation 54: Best cost = 2734.00
+Generation 55: Best cost = 2734.00
+Generation 56: Best cost = 2734.00
+Generation 57: Best cost = 2734.00
+Generation 58: Best cost = 2734.00
+Generation 59: Best cost = 2734.00
+Generation 60: Best cost = 2734.00
+Generation 61: Best cost = 2734.00
+Generation 62: Best cost = 2734.00
+Generation 63: Best cost = 2734.00
+Generation 64: Best cost = 2734.00
+Generation 65: Best cost = 2734.00
+Generation 66: Best cost = 2734.00
+Generation 67: Best cost = 2734.00
+Generation 68: Best cost = 2734.00
+Generation 69: Best cost = 2734.00
+Generation 70: Best cost = 2734.00
+Generation 71: Best cost = 2734.00
+Generation 72: Best cost = 2734.00
+Generation 73: Best cost = 2734.00
+Generation 74: Best cost = 2734.00
+Generation 75: Best cost = 2734.00
+Generation 76: Best cost = 2734.00
+Generation 77: Best cost = 2734.00
+Generation 78: Best cost = 2734.00
+Generation 79: Best cost = 2734.00
+Generation 80: Best cost = 2734.00
+Generation 81: Best cost = 2734.00
+Generation 82: Best cost = 2734.00
+Generation 83: Best cost = 2734.00
+Generation 84: Best cost = 2734.00
+Generation 85: Best cost = 2734.00
+Generation 86: Best cost = 2734.00
+Generation 87: Best cost = 2734.00
+Generation 88: Best cost = 2734.00
+Generation 89: Best cost = 2734.00
+Generation 90: Best cost = 2734.00
+Generation 91: Best cost = 2734.00
+Generation 92: Best cost = 2734.00
+Generation 93: Best cost = 2734.00
+Generation 94: Best cost = 2734.00
+Generation 95: Best cost = 2734.00
+Generation 96: Best cost = 2734.00
+Generation 97: Best cost = 2734.00
+Generation 98: Best cost = 2734.00
+Generation 99: Best cost = 2734.00
+Generation 100: Best cost = 2734.00
+
+--- Optimization Complete ---
+Best reorder point: 21
+Best order quantity: 30
+Minimum total inventory cost: 2734.00
